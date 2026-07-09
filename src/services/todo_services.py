@@ -1,34 +1,20 @@
 from config.mongo import collections
 from bson.objectid import ObjectId
-from datetime import datetime, timedelta
+from datetime import datetime
 
 todo_col = collections("todos")
-
-
-def _oid(id_str: str) -> ObjectId:
-    try:
-        return ObjectId(id_str)
-    except Exception:
-        return None
 
 
 async def create_todo(user_id: str, data: dict):
     data.update({
         "user_id": user_id,
-        "is_favorite": False,
-        "is_archived": False,
+        "is_favorite": data.get("is_favorite", False),
+        "is_archived": data.get("is_archived", False),
         "is_deleted": False,
         "created_at": datetime.utcnow(),
-        "updated_at": datetime.utcnow()
+        "updated_at": datetime.utcnow(),
     })
     return await todo_col.insert_one(data)
-
-
-async def get_todo_by_id(todo_id: str, user_id: str):
-    oid = _oid(todo_id)
-    if not oid:
-        return None
-    return await todo_col.find_one({"_id": oid, "user_id": user_id})
 
 
 async def get_todos(
@@ -60,71 +46,82 @@ async def get_todos(
             {"description": {"$regex": search, "$options": "i"}},
         ]
     if date_from or date_to:
-        date_query = {}
+        query["due_date"] = {}
         if date_from:
-            date_query["$gte"] = date_from
+            query["due_date"]["$gte"] = date_from
         if date_to:
-            date_query["$lte"] = date_to
-        query["due_date"] = date_query
-
-    allowed_sort_fields = {"created_at", "updated_at", "due_date", "title", "priority"}
-    if sort_by not in allowed_sort_fields:
-        sort_by = "created_at"
+            query["due_date"]["$lte"] = date_to
 
     cursor = todo_col.find(query).sort(sort_by, sort_order)
-    return await cursor.to_list(length=500)
+    return await cursor.to_list(length=1000)
+
+
+async def get_todo_by_id(todo_id: str, user_id: str):
+    return await todo_col.find_one({
+        "_id": ObjectId(todo_id),
+        "user_id": user_id,
+        "is_deleted": False,
+    })
 
 
 async def update_todo(todo_id: str, user_id: str, data: dict):
-    oid = _oid(todo_id)
-    if not oid:
-        return None
     data["updated_at"] = datetime.utcnow()
     return await todo_col.update_one(
-        {"_id": oid, "user_id": user_id},
+        {"_id": ObjectId(todo_id), "user_id": user_id},
         {"$set": data}
     )
 
 
-async def delete_todo(todo_id: str):
-    oid = _oid(todo_id)
-    if not oid:
-        return None
-    return await todo_col.delete_one({"_id": oid})
-
-
 async def set_status(todo_id: str, user_id: str, status: str):
-    return await update_todo(todo_id, user_id, {"status": status})
+    return await todo_col.update_one(
+        {"_id": ObjectId(todo_id), "user_id": user_id, "is_deleted": False},
+        {"$set": {"status": status, "updated_at": datetime.utcnow()}}
+    )
 
 
-async def set_favorite(todo_id: str, user_id: str, is_favorite: bool):
-    return await update_todo(todo_id, user_id, {"is_favorite": is_favorite})
+async def set_favorite(todo_id: str, user_id: str, value: bool):
+    return await todo_col.update_one(
+        {"_id": ObjectId(todo_id), "user_id": user_id, "is_deleted": False},
+        {"$set": {"is_favorite": value, "updated_at": datetime.utcnow()}}
+    )
 
 
-async def set_archived(todo_id: str, user_id: str, is_archived: bool):
-    return await update_todo(todo_id, user_id, {"is_archived": is_archived})
+async def set_archived(todo_id: str, user_id: str, value: bool):
+    return await todo_col.update_one(
+        {"_id": ObjectId(todo_id), "user_id": user_id, "is_deleted": False},
+        {"$set": {"is_archived": value, "updated_at": datetime.utcnow()}}
+    )
 
 
 async def soft_delete_todo(todo_id: str, user_id: str):
-    """Moves a task to trash."""
-    return await update_todo(todo_id, user_id, {"is_deleted": True, "deleted_at": datetime.utcnow()})
+    return await todo_col.update_one(
+        {"_id": ObjectId(todo_id), "user_id": user_id, "is_deleted": False},
+        {"$set": {
+            "is_deleted": True,
+            "is_archived": False,
+            "updated_at": datetime.utcnow(),
+        }}
+    )
 
 
 async def restore_todo(todo_id: str, user_id: str):
-    """Restores a task out of trash."""
-    return await update_todo(todo_id, user_id, {"is_deleted": False, "deleted_at": None})
+    return await todo_col.update_one(
+        {"_id": ObjectId(todo_id), "user_id": user_id, "is_deleted": True},
+        {"$set": {"is_deleted": False, "updated_at": datetime.utcnow()}}
+    )
 
 
 async def get_trash(user_id: str):
-    cursor = todo_col.find({"user_id": user_id, "is_deleted": True}).sort("deleted_at", -1)
-    return await cursor.to_list(length=500)
+    cursor = todo_col.find({"user_id": user_id, "is_deleted": True})
+    return await cursor.to_list(length=1000)
 
 
 async def permanently_delete_todo(todo_id: str, user_id: str):
-    oid = _oid(todo_id)
-    if not oid:
-        return None
-    return await todo_col.delete_one({"_id": oid, "user_id": user_id, "is_deleted": True})
+    return await todo_col.delete_one({
+        "_id": ObjectId(todo_id),
+        "user_id": user_id,
+        "is_deleted": True,
+    })
 
 
 async def empty_trash(user_id: str):
@@ -132,28 +129,25 @@ async def empty_trash(user_id: str):
 
 
 async def get_dashboard_summary(user_id: str):
-    base_query = {"user_id": user_id, "is_deleted": False, "is_archived": False}
+    pipeline = [
+        {"$match": {"user_id": user_id, "is_deleted": False}},
+        {"$group": {
+            "_id": "$status",
+            "count": {"$sum": 1},
+        }}
+    ]
+    results = await todo_col.aggregate(pipeline).to_list(length=100)
+    summary = {"total": 0, "pending": 0, "completed": 0, "favorites": 0}
+    for row in results:
+        summary["total"] += row["count"]
+        if row["_id"] == "completed":
+            summary["completed"] = row["count"]
+        elif row["_id"] == "pending":
+            summary["pending"] = row["count"]
 
-    total = await todo_col.count_documents(base_query)
-    completed = await todo_col.count_documents({**base_query, "status": "completed"})
-    pending = await todo_col.count_documents({**base_query, "status": "pending"})
-
-    today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
-    today_end = today_start + timedelta(days=1)
-    today_count = await todo_col.count_documents({
-        **base_query, "due_date": {"$gte": today_start, "$lt": today_end}
+    summary["favorites"] = await todo_col.count_documents({
+        "user_id": user_id,
+        "is_deleted": False,
+        "is_favorite": True,
     })
-    upcoming_count = await todo_col.count_documents({
-        **base_query, "due_date": {"$gt": today_end}, "status": "pending"
-    })
-
-    completion_pct = round((completed / total) * 100, 1) if total > 0 else 0.0
-
-    return {
-        "total_tasks": total,
-        "completed_tasks": completed,
-        "pending_tasks": pending,
-        "today_tasks": today_count,
-        "upcoming_tasks": upcoming_count,
-        "completion_percentage": completion_pct
-    }
+    return summary

@@ -7,29 +7,21 @@ from datetime import timedelta
 from src.services.email_sender import send_otp_email
 import jwt
 import os
-
-from fastapi import Header, HTTPException, Depends, Security
-from fastapi.security import HTTPBearer
+from fastapi import HTTPException, status, Depends
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 security = HTTPBearer()
 
-async def get_current_user(credentials=Depends(security)):
-    """Extracts and verifies JWT token from Authorization header"""
-    token = credentials.credentials
-    user_id = verify_token(token)
-    
-    if not user_id:
-        raise HTTPException(status_code=401, detail="Invalid or expired token")
-    
-    return user_id
 
+# 1. Add 'async' to the function definition
 async def insert_new_acc(fullname: str, email: str, password: str):
+    # 2. Add 'await' to any database call
     existing_user = await users_collection.find_one({"email": email})
     if existing_user:
         return False
 
     hashed_password = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt())
-    
+
     user_doc = {
         "fullname": fullname,
         "email": email,
@@ -37,7 +29,8 @@ async def insert_new_acc(fullname: str, email: str, password: str):
         "created_at": datetime.utcnow(),
         "updated_at": datetime.utcnow()
     }
-    
+
+    # Add 'await' here too
     result = await users_collection.insert_one(user_doc)
     return result.inserted_id
 
@@ -64,9 +57,9 @@ async def login(email: str, password: str):
 async def generate_and_save_otp(email: str) -> str:
     otp = str(random.randint(1000, 9999))
     email_lower = email.strip().lower() # Standardize to lowercase
-    
+
     await otps_collection.delete_many({"email": email_lower})
-    
+
     otp_doc = {
         "email": email_lower,
         "otp": otp, # Stored as string
@@ -78,21 +71,21 @@ async def generate_and_save_otp(email: str) -> str:
 async def verify_otp_code(email: str, otp: str) -> bool:
     email_lower = email.strip().lower()
     otp_str = str(otp).strip() # Ensure it's a string and remove spaces
-    
+
     otp_record = await otps_collection.find_one({"email": email_lower, "otp": otp_str})
-    
+
     if not otp_record:
         return False
-        
+
     if datetime.utcnow() > otp_record["expires_at"]:
         return False
-        
+
     return True
 
 async def update_user_password(email: str, new_password: str):
     """Hashes the new password and updates the user record."""
     hashed_password = bcrypt.hashpw(new_password.encode("utf-8"), bcrypt.gensalt())
-    
+
     await users_collection.update_one(
         {"email": email},
         {"$set": {
@@ -117,3 +110,46 @@ def verify_token(token: str) -> str:
         return None
     except jwt.JWTError:
         return None
+
+
+def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)) -> str:
+    """FastAPI dependency: validate the Bearer token and return the user_id."""
+    user_id = verify_token(credentials.credentials)
+    if not user_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired token"
+        )
+    return user_id
+
+
+async def change_user_password(user_id: str, old_password: str, new_password: str) -> bool:
+    """Verify the old password then update to the new password."""
+    user = await find_by_id(user_id)
+    if not user:
+        return False
+    if not verify_password(user["password"], old_password):
+        return False
+
+    hashed_password = bcrypt.hashpw(new_password.encode("utf-8"), bcrypt.gensalt())
+    await users_collection.update_one(
+        {"_id": ObjectId(user_id)},
+        {"$set": {
+            "password": hashed_password,
+            "updated_at": datetime.utcnow()
+        }}
+    )
+    return True
+
+
+async def update_user_profile(user_id: str, fullname: str = None):
+    """Update the logged-in user's profile fields."""
+    update_fields = {"updated_at": datetime.utcnow()}
+    if fullname is not None:
+        update_fields["fullname"] = fullname
+
+    await users_collection.update_one(
+        {"_id": ObjectId(user_id)},
+        {"$set": update_fields}
+    )
+    return await find_by_id(user_id)

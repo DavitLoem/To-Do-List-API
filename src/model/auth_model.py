@@ -29,6 +29,16 @@ class ResetPasswordRequest(BaseModel):
     confirm_password: str = Field(..., description="Confirm Password", examples=["newpassword123"])
 
 
+class ChangePasswordRequest(BaseModel):
+    old_password: str = Field(..., min_length=8, max_length=50, description="Current password")
+    new_password: str = Field(..., min_length=8, max_length=50, description="New password")
+    confirm_password: str = Field(..., min_length=8, max_length=50, description="Confirm new password")
+
+
+class UpdateProfileRequest(BaseModel):
+    fullname: str = Field(..., min_length=1, max_length=100, description="Full name", examples=["John Doe"])
+
+
 class TokenResponse(BaseModel):
     id: str
     fullname: str

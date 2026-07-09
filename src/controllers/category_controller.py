@@ -6,7 +6,7 @@ from src.services.category_services import (
 )
 from src.services.auth_services import get_current_user
 
-category_router = APIRouter(prefix='/categories', tags=['Categories'])
+category_router = APIRouter(prefix='/api/categories', tags=['Categories'])
 
 
 def _serialize(category: dict) -> dict:

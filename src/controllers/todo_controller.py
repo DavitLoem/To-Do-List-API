@@ -10,7 +10,7 @@ from src.services.todo_services import (
 )
 from src.services.auth_services import get_current_user
 
-todo_router = APIRouter(prefix="/tasks", tags=["Todo List"])
+todo_router = APIRouter(prefix="/api/tasks", tags=["Todo List"])
 
 
 def _serialize(todo: dict) -> dict:
