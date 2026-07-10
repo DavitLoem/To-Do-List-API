@@ -10,7 +10,7 @@ class TodoItem(BaseModel):
     category_id: Optional[str] = Field(None, description="Associated category id")
     due_date: Optional[datetime] = Field(None, description="Due date for the task")
     is_favorite: bool = Field(default=False, description="Mark as favorite")
-    is_archived: bool = Field(default=False, description="Mark as archived")
+    is_archived: bool = Field(default=True, description="Mark as archived")
 
 class TodoUpdate(BaseModel):
     title: Optional[str] = Field(None, description="Task title")

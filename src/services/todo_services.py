@@ -9,7 +9,7 @@ async def create_todo(user_id: str, data: dict):
     data.update({
         "user_id": user_id,
         "is_favorite": data.get("is_favorite", False),
-        "is_archived": data.get("is_archived", False),
+        "is_archived": data.get("is_archived", True),
         "is_deleted": False,
         "created_at": datetime.utcnow(),
         "updated_at": datetime.utcnow(),
@@ -23,7 +23,7 @@ async def get_todos(
     priority: str = None,
     category_id: str = None,
     is_favorite: bool = None,
-    is_archived: bool = False,
+    is_archived: bool = True,
     search: str = None,
     date_from: datetime = None,
     date_to: datetime = None,
@@ -98,7 +98,7 @@ async def soft_delete_todo(todo_id: str, user_id: str):
         {"_id": ObjectId(todo_id), "user_id": user_id, "is_deleted": False},
         {"$set": {
             "is_deleted": True,
-            "is_archived": False,
+            "is_archived": True,
             "updated_at": datetime.utcnow(),
         }}
     )
