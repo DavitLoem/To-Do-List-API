@@ -6,6 +6,7 @@ class RegisterRequest(BaseModel):
     email: str = Field(..., pattern=r"^[^@]+@[^@]+\.[^@]+$", description="Email", examples=["john@example.com"])
     password: str = Field(..., min_length=8, max_length=50, description="Password", examples=["password123"])
     confirm_password: str = Field(..., min_length=8, max_length=50, description="Confirm password", examples=["password123"])
+    profile_image: str = Field(None, description="Profile image URL from Cloudinary")
 
 
 class LoginRequest(BaseModel):
@@ -36,7 +37,8 @@ class ChangePasswordRequest(BaseModel):
 
 
 class UpdateProfileRequest(BaseModel):
-    fullname: str = Field(..., min_length=1, max_length=100, description="Full name", examples=["John Doe"])
+    fullname: str = Field(None, min_length=1, max_length=100, description="Full name", examples=["John Doe"])
+    profile_image: str = Field(None, description="Profile image URL from Cloudinary")
 
 
 class TokenResponse(BaseModel):

@@ -11,5 +11,6 @@ jwt
 aiosmtplib
 httpx
 jinja2
+cloudinary
 
 

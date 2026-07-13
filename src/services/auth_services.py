@@ -8,13 +8,13 @@ from src.services.email_sender import send_otp_email
 import jwt
 import os
 from fastapi import HTTPException, status, Depends
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 security = HTTPBearer()
 
 
 # 1. Add 'async' to the function definition
-async def insert_new_acc(fullname: str, email: str, password: str):
+async def insert_new_acc(fullname: str, email: str, password: str, profile_image: str = None):
     # 2. Add 'await' to any database call
     existing_user = await users_collection.find_one({"email": email})
     if existing_user:
@@ -29,6 +29,9 @@ async def insert_new_acc(fullname: str, email: str, password: str):
         "created_at": datetime.utcnow(),
         "updated_at": datetime.utcnow()
     }
+
+    if profile_image:
+        user_doc["profile_image"] = profile_image
 
     # Add 'await' here too
     result = await users_collection.insert_one(user_doc)
@@ -142,11 +145,13 @@ async def change_user_password(user_id: str, old_password: str, new_password: st
     return True
 
 
-async def update_user_profile(user_id: str, fullname: str = None):
+async def update_user_profile(user_id: str, fullname: str = None, profile_image: str = None):
     """Update the logged-in user's profile fields."""
     update_fields = {"updated_at": datetime.utcnow()}
     if fullname is not None:
         update_fields["fullname"] = fullname
+    if profile_image is not None:
+        update_fields["profile_image"] = profile_image
 
     await users_collection.update_one(
         {"_id": ObjectId(user_id)},

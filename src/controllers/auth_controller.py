@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Body, HTTPException, BackgroundTasks, Depends
+from fastapi import APIRouter, Body, HTTPException, BackgroundTasks, Depends, UploadFile, File
 from src.model.auth_model import (
     RegisterRequest, LoginRequest, ForgotPasswordRequest, VerifyOTPRequest,
     ResetPasswordRequest, ChangePasswordRequest, UpdateProfileRequest
@@ -9,6 +9,7 @@ from src.services.auth_services import (
     get_current_user, change_user_password, update_user_profile
 )
 from src.services.email_sender import send_otp_email
+from src.services.image_service import upload_image
 import jwt
 import os
 import datetime
@@ -20,7 +21,8 @@ def _serialize_user(user):
     return {
         "id": str(user["_id"]),
         "fullname": user["fullname"],
-        "email": user["email"]
+        "email": user["email"],
+        "profile_image": user.get("profile_image")
     }
 
 
@@ -29,7 +31,7 @@ async def register(body: RegisterRequest = Body(...)):
     if body.password != body.confirm_password:
         raise HTTPException(status_code=400, detail="Passwords do not match")
 
-    oid = await insert_new_acc(body.fullname, body.email, body.password)
+    oid = await insert_new_acc(body.fullname, body.email, body.password, body.profile_image)
     if not oid:
         raise HTTPException(status_code=400, detail="User with this email already exists")
 
@@ -72,8 +74,27 @@ async def get_profile(user_id: str = Depends(get_current_user)):
 
 @auth_router.put("/me", summary="Update the logged-in user's profile")
 async def update_profile(body: UpdateProfileRequest = Body(...), user_id: str = Depends(get_current_user)):
-    user = await update_user_profile(user_id, fullname=body.fullname)
+    user = await update_user_profile(user_id, fullname=body.fullname, profile_image=body.profile_image)
     return {"message": "Profile updated", "user": _serialize_user(user)}
+
+
+@auth_router.post("/upload-profile-image", summary="Upload profile image")
+async def upload_profile_image(file: UploadFile = File(...), user_id: str = Depends(get_current_user)):
+    # Validate file type
+    if not file.content_type or not file.content_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail="Only image files are allowed")
+    
+    # Upload to Cloudinary
+    result = await upload_image(file, folder="profile_images")
+    
+    # Update user profile with image URL
+    await update_user_profile(user_id, profile_image=result["url"])
+    
+    return {
+        "message": "Profile image uploaded successfully",
+        "url": result["url"],
+        "public_id": result["public_id"]
+    }
 
 
 @auth_router.post("/change-password", summary="Change password while logged in")
