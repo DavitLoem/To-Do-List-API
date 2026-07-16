@@ -12,5 +12,6 @@ aiosmtplib
 httpx
 jinja2
 cloudinary
+motor
 
 
