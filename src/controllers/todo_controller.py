@@ -37,7 +37,7 @@ async def list_todos(
     priority: Optional[str] = Query(None, description="low, medium, high, urgent"),
     category_id: Optional[str] = Query(None),
     is_favorite: Optional[bool] = Query(None),
-    is_archived: bool = Query(False),
+    is_archived: bool = Query(True),
     search: Optional[str] = Query(None, description="Search in title/description"),
     date_from: Optional[datetime] = Query(None),
     date_to: Optional[datetime] = Query(None),
