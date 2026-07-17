@@ -10,6 +10,8 @@ BREVO_SMTP_KEY = os.getenv("BREVO_API_KEY")
 SMTP_USERNAME = os.getenv("SMTP_USERNAME")
 MAIL_FROM_ADDRESS = os.getenv("MAIL_FROM_ADDRESS")
 MAIL_FROM_NAME = os.getenv("MAIL_FROM_NAME", "To Do List")
+SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
+SMTP_USE_TLS = os.getenv("SMTP_USE_TLS", "true").lower() == "true"
 
 TEMPLATE_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "templates", "email")
 env = Environment(loader=FileSystemLoader(TEMPLATE_DIR))
@@ -38,14 +40,24 @@ async def send_otp_email(recipient_email: str, otp_code: str):
         print(f"   SMTP Host: smtp-relay.brevo.com:587")
         print(f"   Username: {SMTP_USERNAME}")
         
-        await aiosmtplib.send(
-            message,
-            hostname="smtp-relay.brevo.com",
-            port=587,
-            start_tls=True,
-            username=SMTP_USERNAME,
-            password=BREVO_SMTP_KEY,
-        )
+        if SMTP_PORT == 465:
+            await aiosmtplib.send(
+                message,
+                hostname="smtp-relay.brevo.com",
+                port=SMTP_PORT,
+                use_tls=True,
+                username=SMTP_USERNAME,
+                password=BREVO_SMTP_KEY,
+            )
+        else:
+            await aiosmtplib.send(
+                message,
+                hostname="smtp-relay.brevo.com",
+                port=SMTP_PORT,
+                start_tls=SMTP_USE_TLS,
+                username=SMTP_USERNAME,
+                password=BREVO_SMTP_KEY,
+            )
         print(f"✅ OTP email sent to {recipient_email}")
         return True
     except Exception as e:
