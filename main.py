@@ -17,7 +17,7 @@ security = HTTPBearer()
 
 app = FastAPI(
     title="To Do List API",
-    description="API for To Do List Application with JWT Authentication",
+    description="API for To Do List Application",
     docs_url="/docs" if show_docs else None,
     redoc_url="/redoc" if show_docs else None,
     swagger_ui_parameters={"docExpansion": "none"},
