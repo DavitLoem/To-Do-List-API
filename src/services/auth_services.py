@@ -129,10 +129,12 @@ async def change_user_password(user_id: str, old_password: str, new_password: st
     return True
 
 
-async def update_user_profile(user_id: str, fullname: str = None):
+async def update_user_profile(user_id: str, fullname: str = None, profile_image: str = None):
     update_data = {"updated_at": datetime.utcnow()}
     if fullname:
         update_data["fullname"] = fullname
+    if profile_image is not None:
+        update_data["profile_image"] = profile_image
 
     await users_collection.update_one(
         {"_id": ObjectId(user_id)},
