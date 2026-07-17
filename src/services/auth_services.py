@@ -3,7 +3,8 @@ from bson.objectid import ObjectId
 import bcrypt
 from datetime import datetime, timedelta
 import random
-import jwt
+from jose import jwt
+from jose.exceptions import ExpiredSignatureError, JWTError
 import os
 
 from fastapi import Header, HTTPException
@@ -152,7 +153,7 @@ def verify_token(token: str) -> str:
             algorithms=[os.getenv("JWT_ALGORITHM", "HS256")]
         )
         return payload.get("user_id")
-    except jwt.ExpiredSignatureError:
+    except ExpiredSignatureError:
         return None
-    except jwt.InvalidTokenError:
+    except JWTError:
         return None

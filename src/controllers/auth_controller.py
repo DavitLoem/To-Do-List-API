@@ -10,7 +10,7 @@ from src.services.auth_services import (
 )
 from src.services.email_sender import send_otp_email
 from src.services.image_service import upload_image
-import jwt
+from jose import jwt, JWTError
 import os
 import datetime
 
